@@ -6,7 +6,12 @@ import (
 	"log"
 	"net/http"
     "strconv"
+    "os"
+    
 	"github.com/gorilla/mux"
+	jwt "github.com/golang-jwt/jwt/v4"
+
+
 )
 
 type apiFunc func(http.ResponseWriter, *http.Request) error
@@ -33,17 +38,44 @@ func (s *APIServer) Run() {
 
 	router := mux.NewRouter()
 
-	router.HandleFunc("/account", makeHTTPHandelFunc(s.handleAccount))
+	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 
-	router.HandleFunc("/account/{id}", makeHTTPHandelFunc(s.handleAccountByID))
+	router.HandleFunc("/account/{id}", s.withJWTAuth(makeHTTPHandleFunc(s.handleAccountByID)))
 
-	router.HandleFunc("/transfer", makeHTTPHandelFunc(s.handleTransfer))
-
+	router.HandleFunc("/transfer", makeHTTPHandleFunc(s.handleTransfer))
+    router.HandleFunc("/login",    makeHTTPHandleFunc(s.handleLogin))
 	log.Println("JSON API serve runnign on port: ", s.listenAddr)
 
 	http.ListenAndServe(s.listenAddr, router)
 
 }
+
+func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error { 
+     
+    var req LoginRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        return err
+    }
+
+    encPasswd := CreateHash(req.Password)
+    acc, err := s.store.GetAccountByNumber(req.Number)
+    
+    if err != nil {
+        return err
+    }
+
+    if acc.Password != encPasswd {
+        return err
+    }
+
+    token, err := createJWT(acc)
+    
+    if err != nil {
+        return err
+    }
+    return WriteJSON(w, http.StatusOK, map[string]string {"x-jwl-token":token})
+}
+
 
 func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
 
@@ -113,13 +145,13 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
+	acc := NewAccount(createAccountReq.FirstName, createAccountReq.LastName, createAccountReq.Password)
 
-	if err := s.store.CreateAccount(account); err != nil {
+	if err := s.store.CreateAccount(acc); err != nil {
 		return err
 	}
 
-	return WriteJSON(w, http.StatusOK, account)
+	return WriteJSON(w, http.StatusOK, acc)
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
@@ -131,7 +163,6 @@ func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error
 
     defer r.Body.Close()
 
-
 	return WriteJSON(w, http.StatusOK, transferReq)
 }
 
@@ -142,11 +173,10 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 	return json.NewEncoder(w).Encode(v)
 }
 
-func makeHTTPHandelFunc(f apiFunc) http.HandlerFunc {
+func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := f(w, r); err != nil {
 			WriteJSON(w, http.StatusBadRequest, APIError{Error: err.Error()})
-			//Error Handling :/
 		}
 	}
 }
@@ -159,4 +189,75 @@ func getID(r *http.Request) (int, error) {
     }
     return id, nil
  
+}
+
+func validateJWT(tokenString string) (*jwt.Token, error){
+    secret := os.Getenv("JWT_SECRET")
+    fmt.Println(secret)
+
+
+    return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+        
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+        }
+        return []byte(secret), nil
+    })
+
+}
+
+func deezNuts(w http.ResponseWriter) {
+    WriteJSON(w, http.StatusForbidden, APIError{Error: "deez nuts"})
+    return 
+}
+
+func (s *APIServer) withJWTAuth(handlerFunc http.HandlerFunc) http.HandlerFunc {
+
+    return func(w http.ResponseWriter, r *http.Request) {
+        tokenString := r.Header.Get("x-jwt-token")
+        token, err := validateJWT(tokenString)
+        if err != nil {
+            deezNuts(w)
+            return 
+        }
+        if !token.Valid {
+            deezNuts(w)
+            return 
+        }
+        
+        userID, err := getID(r)
+        if err != nil {
+            return 
+        }
+        
+        acc, err := s.store.GetAccountByID(userID)
+         
+        if err != nil {
+            deezNuts(w)
+            return 
+        }
+        
+
+        claims := token.Claims.(jwt.MapClaims)
+        if acc.Number != int64(claims["accountNumber"].(float64)) {
+            deezNuts(w)
+            return
+
+        }
+        handlerFunc(w, r)
+    }
+}
+
+func createJWT(acc *Account) (string, error) {
+
+    claims := &jwt.MapClaims {
+        "expiresAt": 15000,
+        "accountNumber": acc.Number,
+    }
+     
+    secret := os.Getenv("JWT_SECRET")
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+    return token.SignedString([]byte(secret))
+     
 }
