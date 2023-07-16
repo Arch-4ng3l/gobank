@@ -12,6 +12,5 @@ func main() {
 	}
 
 	server := NewAPIServer(":3000", store)
-
 	server.Run()
 }

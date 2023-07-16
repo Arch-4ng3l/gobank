@@ -3,8 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
-
 	_ "github.com/lib/pq"
+	"math/rand"
 )
 
 type Storage interface {
@@ -66,13 +66,22 @@ func (psql *PostgresStore) CreateAccount(acc *Account) error {
 	res, err := psql.db.Query(query,
 		acc.FirstName,
 		acc.LastName,
-        acc.Number,
+		acc.Number,
 		acc.Balance,
 		acc.CreatedAt,
-        acc.Password,
-    )
+		acc.Password,
+	)
 	if err != nil {
-		return err
+		dupError := `pq: duplicate key value violates unique constraint "accounts_number_key"`
+
+		if err.Error() == dupError {
+
+			acc.Number = int64(rand.Intn(1000000000000))
+			psql.CreateAccount(acc)
+
+		} else {
+			return err
+		}
 	}
 
 	fmt.Printf("%+v\n", res)
@@ -82,7 +91,7 @@ func (psql *PostgresStore) CreateAccount(acc *Account) error {
 
 func (psql *PostgresStore) DeleteAccount(id int) error {
 
-    _, err := psql.db.Query("DELETE FROM accounts WHERE id = $1", id)
+	_, err := psql.db.Query("DELETE FROM accounts WHERE id = $1", id)
 	return err
 }
 
@@ -91,35 +100,34 @@ func (psql *PostgresStore) UpdateAccount(acc *Account) error {
 }
 
 func (psql *PostgresStore) GetAccountByID(id int) (*Account, error) {
-    rows, err := psql.db.Query("SELECT * FROM accounts WHERE ID = $1", id)
-    if err != nil {
+	rows, err := psql.db.Query("SELECT * FROM accounts WHERE ID = $1", id)
+	if err != nil {
 
-        return nil, err
-    }
-    
-    for rows.Next() {
+		return nil, err
+	}
 
-        return scanIntoAccount(rows)
-    }
+	for rows.Next() {
 
-    return nil, fmt.Errorf("account %d not found", id)
+		return scanIntoAccount(rows)
+	}
+
+	return nil, fmt.Errorf("account %d not found", id)
 }
 
 func (psql *PostgresStore) GetAccountByNumber(number int64) (*Account, error) {
-    rows, err := psql.db.Query("SELECT * FROM accounts WHERE number = $1", number)
-    if err != nil {
+	rows, err := psql.db.Query("SELECT * FROM accounts WHERE number = $1", number)
+	if err != nil {
 
-        return nil, err
-    }
-    
-    for rows.Next() {
+		return nil, err
+	}
 
-        return scanIntoAccount(rows)
-    }
+	for rows.Next() {
 
-    return nil, fmt.Errorf("account number %d not found", number)
+		return scanIntoAccount(rows)
+	}
+
+	return nil, fmt.Errorf("account number %d not found", number)
 }
-
 
 func (psql *PostgresStore) GetAccounts() ([]*Account, error) {
 	rows, err := psql.db.Query("SELECT * FROM accounts")
@@ -131,12 +139,12 @@ func (psql *PostgresStore) GetAccounts() ([]*Account, error) {
 	accounts := []*Account{}
 
 	for rows.Next() {
-        
-        acc, err := scanIntoAccount(rows)
 
-        if err != nil {
-            return nil, err
-        }
+		acc, err := scanIntoAccount(rows)
+
+		if err != nil {
+			return nil, err
+		}
 		accounts = append(accounts, acc)
 
 	}
@@ -144,11 +152,10 @@ func (psql *PostgresStore) GetAccounts() ([]*Account, error) {
 	return accounts, nil
 }
 
-func scanIntoAccount(rows *sql.Rows) (*Account, error){
-    acc := &Account{}
-    err := rows.Scan(&acc.ID, &acc.FirstName, &acc.LastName, &acc.Number, &acc.Balance, &acc.CreatedAt, &acc.Password)
+func scanIntoAccount(rows *sql.Rows) (*Account, error) {
+	acc := &Account{}
+	err := rows.Scan(&acc.ID, &acc.FirstName, &acc.LastName, &acc.Number, &acc.Balance, &acc.CreatedAt, &acc.Password)
 
-    return  acc, err
+	return acc, err
 
 }
-

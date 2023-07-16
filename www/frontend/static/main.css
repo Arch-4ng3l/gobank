@@ -1,0 +1,35 @@
+div.form {
+	text-align: center;
+	align-items: center;
+	align-content: center;
+}
+
+form {
+	width: 30%;
+	margin: auto;
+	margin-top: 10%;
+	text-align: left;
+	align-content: center;
+}
+
+input.input {
+	width: 250px;
+	height: 40px;
+	font-size: 20px;
+}
+
+input.button {
+    margin: auto;
+	width: 150px;
+	height: 40px;
+	font-size: 30px;
+}
+input {
+    display: block;
+}
+
+
+label {
+	font-size: 20px;
+
+}

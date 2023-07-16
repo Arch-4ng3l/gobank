@@ -1,9 +1,9 @@
 package main
 
 import (
-    "testing"
+	"testing"
 )
 
 func TestNewAccount(t *testing.T) {
-    acc := NewAccount("a", "b", "test")
+	acc := NewAccount("a", "b", "test")
 }

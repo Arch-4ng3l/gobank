@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+    <title>hello world</title>
+		<script src=main.js></script>
+		<link rel="stylesheet", href=main.css>
+  </head>
+  <body>
+
+		<div class="form">
+			<form id="send">
+
+				<label for="number">Account Number</label>
+
+				<input class="input" type="number" name="number" required> <br> <br>
+                
+
+				<label for="password">Password</label>
+
+				<input class="input" type="password" name="password" required> <br> <br> <br>
+
+				<input class="button" type="button" onclick="send('/loginAcc', 'login')" value="Login"></input>
+
+
+			</form>
+		</div>
+
+	</body>
+</html>
